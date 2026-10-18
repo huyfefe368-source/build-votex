@@ -134,6 +134,9 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     UIView *mainTabContainer;
     UIView *aimTabContainer;
     UIView *settingTabContainer;
+    UIView *debugTabContainer;
+    UITextView *debugLogView;
+    BOOL debugScanEnabled;
 
     UIView *previewView;
     UIView *previewContentContainer;
@@ -266,7 +269,7 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     sidebar.userInteractionEnabled = YES;
     [menuContainer addSubview:sidebar];
     
-    NSArray *tabs = @[@"Main", @"AIM", @"Setting"];
+    NSArray *tabs = @[@"Main", @"AIM", @"Setting", @"Debug"];
     for (int i = 0; i < tabs.count; i++) {
         UIView *tabBtn = [[UIView alloc] initWithFrame:CGRectMake(5, 10 + (i * 50), 65, 35)];
         tabBtn.backgroundColor = (i == 0) ? [UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:1.0] : [UIColor colorWithRed:0.3 green:0.3 blue:0.3 alpha:1.0];
@@ -412,6 +415,7 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     settingTabContainer.layer.cornerRadius = 10;
     settingTabContainer.userInteractionEnabled = YES;
     settingTabContainer.hidden = YES;
+    debugTabContainer.hidden = YES;
     [menuContainer addSubview:settingTabContainer];
     
     UILabel *stTitle = [[UILabel alloc] initWithFrame:CGRectMake(15, 10, 200, 20)];
@@ -419,6 +423,118 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     stTitle.textColor = [UIColor whiteColor];
     stTitle.font = [UIFont boldSystemFontOfSize:16];
     [settingTabContainer addSubview:stTitle];
+
+    // --- DEBUG TAB ---
+    debugTabContainer = [[UIView alloc] initWithFrame:CGRectMake(15, 50, 440, 250)];
+    debugTabContainer.backgroundColor = [UIColor blackColor];
+    debugTabContainer.layer.borderColor = [UIColor whiteColor].CGColor;
+    debugTabContainer.layer.borderWidth = 1;
+    debugTabContainer.layer.cornerRadius = 10;
+    debugTabContainer.userInteractionEnabled = YES;
+    debugTabContainer.hidden = YES;
+    [menuContainer addSubview:debugTabContainer];
+
+    UILabel *dbgTitle = [[UILabel alloc] initWithFrame:CGRectMake(15, 8, 200, 20)];
+    dbgTitle.text = @"Debug";
+    dbgTitle.textColor = [UIColor whiteColor];
+    dbgTitle.font = [UIFont boldSystemFontOfSize:16];
+    [debugTabContainer addSubview:dbgTitle];
+
+    // Scan button
+    UIView *scanBtn = [[UIView alloc] initWithFrame:CGRectMake(15, 35, 100, 28)];
+    scanBtn.backgroundColor = [UIColor colorWithRed:0.2 green:0.5 blue:0.2 alpha:1.0];
+    scanBtn.layer.cornerRadius = 6;
+    scanBtn.userInteractionEnabled = YES;
+    UILabel *scanLbl = [[UILabel alloc] initWithFrame:scanBtn.bounds];
+    scanLbl.text = @"Scan";
+    scanLbl.textColor = [UIColor whiteColor];
+    scanLbl.textAlignment = NSTextAlignmentCenter;
+    scanLbl.font = [UIFont boldSystemFontOfSize:12];
+    scanLbl.userInteractionEnabled = NO;
+    [scanBtn addSubview:scanLbl];
+    UITapGestureRecognizer *scanTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(doDebugScan)];
+    [scanBtn addGestureRecognizer:scanTap];
+    [debugTabContainer addSubview:scanBtn];
+
+    // Clear button
+    UIView *clrBtn = [[UIView alloc] initWithFrame:CGRectMake(125, 35, 80, 28)];
+    clrBtn.backgroundColor = [UIColor colorWithRed:0.5 green:0.2 blue:0.2 alpha:1.0];
+    clrBtn.layer.cornerRadius = 6;
+    clrBtn.userInteractionEnabled = YES;
+    UILabel *clrLbl = [[UILabel alloc] initWithFrame:clrBtn.bounds];
+    clrLbl.text = @"Clear";
+    clrLbl.textColor = [UIColor whiteColor];
+    clrLbl.textAlignment = NSTextAlignmentCenter;
+    clrLbl.font = [UIFont boldSystemFontOfSize:12];
+    clrLbl.userInteractionEnabled = NO;
+    [clrBtn addSubview:clrLbl];
+    UITapGestureRecognizer *clrTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(clearDebugLog)];
+    [clrBtn addGestureRecognizer:clrTap];
+    [debugTabContainer addSubview:clrBtn];
+
+    // Log view (selectable/copyable)
+    debugLogView = [[UITextView alloc] initWithFrame:CGRectMake(10, 70, 420, 170)];
+    debugLogView.backgroundColor = [UIColor colorWithWhite:0.1 alpha:1.0];
+    debugLogView.textColor = [UIColor greenColor];
+    debugLogView.font = [UIFont fontWithName:@"Menlo" size:10];
+    debugLogView.editable = NO;
+    debugLogView.selectable = YES;
+    debugLogView.text = @"Log (tap Scan to run)\n";
+    [debugTabContainer addSubview:debugLogView];
+}
+
+- (void)appendDebugLog:(NSString *)line {
+    if (!debugLogView) return;
+    NSString *cur = debugLogView.text ?: @"";
+    debugLogView.text = [cur stringByAppendingFormat:@"%@\n", line];
+    [debugLogView scrollRangeToVisible:NSMakeRange(debugLogView.text.length, 0)];
+}
+
+- (void)clearDebugLog {
+    debugLogView.text = @"";
+}
+
+- (void)doDebugScan {
+    [self appendDebugLog:@"--- Scan start ---"];
+    if (Moudule_Base == (uint64_t)-1 || Moudule_Base == 0) {
+        [self appendDebugLog:@"Module base not ready"];
+        return;
+    }
+    [self appendDebugLog:[NSString stringWithFormat:@"Base: 0x%llx", Moudule_Base]];
+
+    // Try TypeInfo first
+    uint64_t ti = ReadAddr<uint64_t>(Moudule_Base + 0xBFD8978);
+    [self appendDebugLog:[NSString stringWithFormat:@"TypeInfo@0xBFD8978: 0x%llx", ti]];
+    if (isVaildPtr(ti)) {
+        uint64_t sf = ReadAddr<uint64_t>(ti + 0xB8);
+        if (isVaildPtr(sf)) {
+            uint64_t mg = ReadAddr<uint64_t>(sf + 0x8);
+            if (looksMatchGame(mg)) {
+                [self appendDebugLog:[NSString stringWithFormat:@"MatchGame via TypeInfo: 0x%llx", mg]];
+                return;
+            }
+        }
+    }
+
+    // Runtime scan
+    [self appendDebugLog:@"Scanning data range..."];
+    const uint64_t start = 0x800000;
+    const uint64_t end   = 0x3000000;
+    int checked = 0;
+    for (uint64_t off = start; off < end; off += 8) {
+        uint64_t cand = ReadAddr<uint64_t>(Moudule_Base + off);
+        if (!isVaildPtr(cand)) continue;
+        checked++;
+        if (looksMatchGame(cand)) {
+            [self appendDebugLog:[NSString stringWithFormat:@"FOUND MatchGame at base+0x%llx -> 0x%llx", off, cand]];
+            [self appendDebugLog:[NSString stringWithFormat:@"Checked %d ptrs", checked]];
+            return;
+        }
+        if (checked % 50000 == 0) {
+            [self appendDebugLog:[NSString stringWithFormat:@"...checked %d", checked]];
+        }
+    }
+    [self appendDebugLog:[NSString stringWithFormat:@"Not found (checked %d)", checked]];
 }
 
 - (void)tabTapped:(UITapGestureRecognizer *)gesture {
@@ -427,10 +543,11 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     aimTabContainer.hidden = YES;
     settingTabContainer.userInteractionEnabled = YES;
     settingTabContainer.hidden = YES;
+    debugTabContainer.hidden = YES;
     
     // Reset all tab colors
     for (UIView *sub in sender.superview.subviews) {
-        if (sub.tag >= 0 && sub.tag <= 2) {
+        if (sub.tag >= 0 && sub.tag <= 3) {
             sub.backgroundColor = [UIColor colorWithRed:0.3 green:0.3 blue:0.3 alpha:1.0];
         }
     }
@@ -440,6 +557,7 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     if (sender.tag == 0) mainTabContainer.hidden = NO;
     if (sender.tag == 1) aimTabContainer.hidden = NO;
     if (sender.tag == 2) settingTabContainer.hidden = NO;
+    if (sender.tag == 3) debugTabContainer.hidden = NO;
 }
 
 - (void)drawPreviewElements {
