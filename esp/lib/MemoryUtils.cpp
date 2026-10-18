@@ -54,7 +54,7 @@ vm_map_offset_t GetGameModule_Base(char* GameProcessName) {
     kern_return_t kret = task_for_pid(mach_task_self(), pid, &get_task);
     
     if (get_task != MACH_PORT_NULL) {
-        kern_return_t kr = mach_vm_region_recurse(get_task, &vmoffset, &vmsize, &nesting_depth, (vm_region_recurse_info_t)&vbr, &vbrcount);
+        kern_return_t kr = vm_region_recurse(get_task, &vmoffset, &vmsize, &nesting_depth, (vm_region_recurse_info_t)&vbr, &vbrcount);
         if (kr == KERN_SUCCESS) {
             return vmoffset;
         }
@@ -66,8 +66,8 @@ vm_map_offset_t GetGameModule_Base(char* GameProcessName) {
 bool _read(long addr, void *buffer, int len)
 {
     if (!isVaildPtr(addr)) return false;
-    mach_vm_size_t size = 0;
-    kern_return_t error = mach_vm_read_overwrite(get_task, (mach_vm_address_t)addr, len, (mach_vm_address_t)buffer, &size);
+    vm_size_t size = 0;
+    kern_return_t error = vm_read_overwrite(get_task, (vm_address_t)addr, len, (vm_address_t)buffer, &size);
     if(error != KERN_SUCCESS || size != len)
     {
         return false;
@@ -79,9 +79,9 @@ bool _write(long addr, const void *buffer, int len)
 {
     if (!isVaildPtr(addr)) return false;
 
-    kern_return_t kr = mach_vm_write(
+    kern_return_t kr = vm_write(
         get_task,
-        (mach_vm_address_t)addr,
+        (vm_address_t)addr,
         (vm_offset_t)buffer,
         (mach_msg_type_number_t)len
     );
