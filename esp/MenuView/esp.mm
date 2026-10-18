@@ -136,7 +136,9 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     UIView *settingTabContainer;
     UIView *debugTabContainer;
     UITextView *debugLogView;
+    UILabel *scanBtnLabel;
     BOOL debugScanEnabled;
+    NSTimer *debugScanTimer;
 
     UIView *previewView;
     UIView *previewContentContainer;
@@ -440,19 +442,19 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     dbgTitle.font = [UIFont boldSystemFontOfSize:16];
     [debugTabContainer addSubview:dbgTitle];
 
-    // Scan button
-    UIView *scanBtn = [[UIView alloc] initWithFrame:CGRectMake(15, 35, 100, 28)];
-    scanBtn.backgroundColor = [UIColor colorWithRed:0.2 green:0.5 blue:0.2 alpha:1.0];
+    // Scan toggle
+    UIView *scanBtn = [[UIView alloc] initWithFrame:CGRectMake(15, 35, 110, 28)];
+    scanBtn.backgroundColor = [UIColor colorWithRed:0.3 green:0.3 blue:0.3 alpha:1.0];
     scanBtn.layer.cornerRadius = 6;
     scanBtn.userInteractionEnabled = YES;
-    UILabel *scanLbl = [[UILabel alloc] initWithFrame:scanBtn.bounds];
-    scanLbl.text = @"Scan";
-    scanLbl.textColor = [UIColor whiteColor];
-    scanLbl.textAlignment = NSTextAlignmentCenter;
-    scanLbl.font = [UIFont boldSystemFontOfSize:12];
-    scanLbl.userInteractionEnabled = NO;
-    [scanBtn addSubview:scanLbl];
-    UITapGestureRecognizer *scanTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(doDebugScan)];
+    scanBtnLabel = [[UILabel alloc] initWithFrame:scanBtn.bounds];
+    scanBtnLabel.text = @"Scan: OFF";
+    scanBtnLabel.textColor = [UIColor whiteColor];
+    scanBtnLabel.textAlignment = NSTextAlignmentCenter;
+    scanBtnLabel.font = [UIFont boldSystemFontOfSize:11];
+    scanBtnLabel.userInteractionEnabled = NO;
+    [scanBtn addSubview:scanBtnLabel];
+    UITapGestureRecognizer *scanTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleDebugScan)];
     [scanBtn addGestureRecognizer:scanTap];
     [debugTabContainer addSubview:scanBtn];
 
@@ -494,47 +496,55 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     debugLogView.text = @"";
 }
 
-- (void)doDebugScan {
-    [self appendDebugLog:@"--- Scan start ---"];
+- (void)toggleDebugScan {
+    debugScanEnabled = !debugScanEnabled;
+    if (debugScanEnabled) {
+        scanBtnLabel.text = @"Scan: ON";
+        scanBtnLabel.superview.backgroundColor = [UIColor colorWithRed:0.2 green:0.6 blue:0.2 alpha:1.0];
+        [self appendDebugLog:@"--- Continuous scan ON ---"];
+        debugScanTimer = [NSTimer scheduledTimerWithTimeInterval:2.0 target:self selector:@selector(continuousScan) userInfo:nil repeats:YES];
+    } else {
+        scanBtnLabel.text = @"Scan: OFF";
+        scanBtnLabel.superview.backgroundColor = [UIColor colorWithRed:0.3 green:0.3 blue:0.3 alpha:1.0];
+        [debugScanTimer invalidate];
+        debugScanTimer = nil;
+        [self appendDebugLog:@"--- Scan OFF ---"];
+    }
+}
+
+- (void)continuousScan {
+    if (!debugScanEnabled) return;
     if (Moudule_Base == (uint64_t)-1 || Moudule_Base == 0) {
-        [self appendDebugLog:@"Module base not ready"];
+        [self appendDebugLog:@"Base not ready"];
         return;
     }
-    [self appendDebugLog:[NSString stringWithFormat:@"Base: 0x%llx", Moudule_Base]];
-
-    // Try TypeInfo first
+    // Try TypeInfo
     uint64_t ti = ReadAddr<uint64_t>(Moudule_Base + 0xBFD8978);
-    [self appendDebugLog:[NSString stringWithFormat:@"TypeInfo@0xBFD8978: 0x%llx", ti]];
     if (isVaildPtr(ti)) {
         uint64_t sf = ReadAddr<uint64_t>(ti + 0xB8);
         if (isVaildPtr(sf)) {
             uint64_t mg = ReadAddr<uint64_t>(sf + 0x8);
             if (looksMatchGame(mg)) {
-                [self appendDebugLog:[NSString stringWithFormat:@"MatchGame via TypeInfo: 0x%llx", mg]];
+                [self appendDebugLog:[NSString stringWithFormat:@"TypeInfo OK: 0x%llx", mg]];
                 return;
             }
         }
     }
-
-    // Runtime scan
-    [self appendDebugLog:@"Scanning data range..."];
-    const uint64_t start = 0x800000;
-    const uint64_t end   = 0x3000000;
-    int checked = 0;
-    for (uint64_t off = start; off < end; off += 8) {
-        uint64_t cand = ReadAddr<uint64_t>(Moudule_Base + off);
-        if (!isVaildPtr(cand)) continue;
-        checked++;
-        if (looksMatchGame(cand)) {
-            [self appendDebugLog:[NSString stringWithFormat:@"FOUND MatchGame at base+0x%llx -> 0x%llx", off, cand]];
-            [self appendDebugLog:[NSString stringWithFormat:@"Checked %d ptrs", checked]];
-            return;
-        }
-        if (checked % 50000 == 0) {
-            [self appendDebugLog:[NSString stringWithFormat:@"...checked %d", checked]];
+    // Quick scan (sample every 0x1000 to avoid lag)
+    static uint64_t lastOff = 0x800000;
+    const uint64_t end = 0x3000000;
+    int found = 0;
+    for (int i = 0; i < 200 && lastOff < end; i++, lastOff += 0x1000) {
+        uint64_t cand = ReadAddr<uint64_t>(Moudule_Base + lastOff);
+        if (isVaildPtr(cand) && looksMatchGame(cand)) {
+            [self appendDebugLog:[NSString stringWithFormat:@"FOUND base+0x%llx -> 0x%llx", lastOff, cand]];
+            found++;
         }
     }
-    [self appendDebugLog:[NSString stringWithFormat:@"Not found (checked %d)", checked]];
+    if (lastOff >= end) lastOff = 0x800000;
+    if (found == 0) {
+        [self appendDebugLog:[NSString stringWithFormat:@"scan @0x%llx ...", lastOff]];
+    }
 }
 
 - (void)tabTapped:(UITapGestureRecognizer *)gesture {
