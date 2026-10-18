@@ -2,10 +2,53 @@
 
 #pragma mark - Function Game
 
+// Simple structure check: MatchGame has Match@0x90 and CameraCtrlMgr@0xD8
+static bool looksMatchGame(uint64_t obj) {
+    if (!isVaildPtr(obj)) return false;
+    uint64_t match = ReadAddr<uint64_t>(obj + 0x90);
+    uint64_t camMgr = ReadAddr<uint64_t>(obj + 0xD8);
+    if (!isVaildPtr(match) || !isVaildPtr(camMgr)) return false;
+    uint64_t lp = ReadAddr<uint64_t>(match + 0xD8);
+    return isVaildPtr(lp);
+}
+
+// Fallback: scan a bounded region of the module for a MatchGame-like object
+static uint64_t scanMatchGame(uint64_t base) {
+    if (!base) return 0;
+    static uint64_t cached = 0;
+    if (cached && looksMatchGame(cached)) return cached;
+
+    // Scan a few likely data ranges (adjust if needed)
+    const uint64_t ranges[][2] = {
+        {0x0C00000, 0x1000000},
+        {0x1800000, 0x1C00000},
+    };
+    for (auto &rg : ranges) {
+        for (uint64_t off = rg[0]; off < rg[1]; off += 8) {
+            uint64_t cand = ReadAddr<uint64_t>(base + off);
+            if (looksMatchGame(cand)) {
+                cached = cand;
+                return cand;
+            }
+        }
+    }
+    return 0;
+}
+
 uint64_t getMatchGame(uint64_t Moudule_Base) {
-    uint64_t GameFacade_TypeInfo = ReadAddr<uint64_t>(Moudule_Base + 0xBFD8978  // outdated, needs scan fallback);
-    uint64_t GameFacade_Static = ReadAddr<uint64_t>(GameFacade_TypeInfo + 0xB8);
-    return ReadAddr<uint64_t>(GameFacade_Static + 0x0);
+    // Try TypeInfo path first (may be outdated)
+    uint64_t ti = ReadAddr<uint64_t>(Moudule_Base + 0xBFD8978);
+    if (isVaildPtr(ti)) {
+        uint64_t sf = ReadAddr<uint64_t>(ti + 0xB8);
+        if (isVaildPtr(sf)) {
+            uint64_t mg = ReadAddr<uint64_t>(sf + 0x8); // CurrentMatchGame
+            if (looksMatchGame(mg)) return mg;
+            mg = ReadAddr<uint64_t>(sf + 0x0); // CurrentGame fallback
+            if (looksMatchGame(mg)) return mg;
+        }
+    }
+    // Fallback: structure scan
+    return scanMatchGame(Moudule_Base);
 }
 
 uint64_t getMatch(uint64_t matchgame) {
