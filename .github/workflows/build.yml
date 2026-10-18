@@ -1,0 +1,54 @@
+name: Build Vortex TIPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build with Theos
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew update
+          brew install ldid make xz
+
+      - name: Cache Theos
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/theos
+            ~/Library/Caches/theos
+          key: theos-${{ runner.os }}-${{ hashFiles('Makefile') }}
+          restore-keys: |
+            theos-${{ runner.os }}-
+
+      - name: Install Theos
+        run: |
+          if [ ! -d "$HOME/theos/.git" ]; then
+            rm -rf "$HOME/theos"
+            git clone --recursive https://github.com/theos/theos.git "$HOME/theos"
+          else
+            git -C "$HOME/theos" pull --ff-only || true
+            git -C "$HOME/theos" submodule update --init --recursive
+          fi
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+
+      - name: Build
+        run: |
+          export THEOS=$HOME/theos
+          make clean || true
+          make package
+
+      - name: Upload TIPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: vortex-tipa
+          path: packages/*.tipa
+          if-no-files-found: warn
