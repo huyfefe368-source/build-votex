@@ -25,6 +25,63 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
 @property (nonatomic, assign, getter=isOn) BOOL on;
 @end
 
+@interface CustomSlider : UIView
+@property (nonatomic, assign) float value;
+@property (nonatomic, assign) float minValue;
+@property (nonatomic, assign) float maxValue;
+@property (nonatomic, copy) void (^onChange)(float value);
+@end
+
+@implementation CustomSlider {
+    UIView *_track;
+    UIView *_fill;
+    UIView *_thumb;
+}
+- (instancetype)initWithFrame:(CGRect)frame min:(float)min max:(float)max value:(float)val {
+    self = [super initWithFrame:frame];
+    if (self) {
+        _minValue = min;
+        _maxValue = max;
+        _value = val;
+        self.userInteractionEnabled = YES;
+        
+        _track = [[UIView alloc] initWithFrame:CGRectMake(0, frame.size.height/2 - 2, frame.size.width, 4)];
+        _track.backgroundColor = [UIColor colorWithWhite:0.3 alpha:1.0];
+        _track.layer.cornerRadius = 2;
+        [self addSubview:_track];
+        
+        float ratio = (val - min) / (max - min);
+        _fill = [[UIView alloc] initWithFrame:CGRectMake(0, frame.size.height/2 - 2, frame.size.width * ratio, 4)];
+        _fill.backgroundColor = [UIColor greenColor];
+        _fill.layer.cornerRadius = 2;
+        [self addSubview:_fill];
+        
+        _thumb = [[UIView alloc] initWithFrame:CGRectMake(frame.size.width * ratio - 10, frame.size.height/2 - 10, 20, 20)];
+        _thumb.backgroundColor = [UIColor whiteColor];
+        _thumb.layer.cornerRadius = 10;
+        [self addSubview:_thumb];
+        
+        UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
+        [self addGestureRecognizer:pan];
+    }
+    return self;
+}
+- (void)handlePan:(UIPanGestureRecognizer *)g {
+    CGPoint pt = [g locationInView:self];
+    float ratio = MAX(0, MIN(1, pt.x / self.bounds.size.width));
+    _value = _minValue + ratio * (_maxValue - _minValue);
+    [self updateUI];
+    if (_onChange) _onChange(_value);
+}
+- (void)updateUI {
+    float ratio = (_value - _minValue) / (_maxValue - _minValue);
+    _fill.frame = CGRectMake(0, self.bounds.size.height/2 - 2, self.bounds.size.width * ratio, 4);
+    _thumb.center = CGPointMake(self.bounds.size.width * ratio, self.bounds.size.height/2);
+}
+@end
+
+
+
 @implementation CustomSwitch { UIView *_thumb; }
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
@@ -295,14 +352,11 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     sliderLabel.font = [UIFont systemFontOfSize:12];
     [featureBox addSubview:sliderLabel];
     
-    UISlider *slider = [[UISlider alloc] initWithFrame:CGRectMake(55, 220, 225, 20)];
-    slider.minimumValue = 0.5;
-    slider.maximumValue = 1.3;
-    slider.value = 1.0;
-    slider.thumbTintColor = [UIColor whiteColor];
-    slider.minimumTrackTintColor = [UIColor greenColor];
-    slider.userInteractionEnabled = YES;
-    [slider addTarget:self action:@selector(sliderValueChanged:) forControlEvents:UIControlEventValueChanged];
+    CustomSlider *slider = [[CustomSlider alloc] initWithFrame:CGRectMake(55, 215, 225, 30) min:0.5 max:1.3 value:1.0];
+    slider.onChange = ^(float val) {
+        previewScale = val;
+        previewContentContainer.transform = CGAffineTransformMakeScale(val, val);
+    };
     [featureBox addSubview:slider];
 
     // --- AIM TAB ---
@@ -334,13 +388,8 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     fovLabel.font = [UIFont systemFontOfSize:13];
     [aimTabContainer addSubview:fovLabel];
     
-    UISlider *fovSlider = [[UISlider alloc] initWithFrame:CGRectMake(15, 110, 400, 20)];
-    fovSlider.minimumValue = 10.0;
-    fovSlider.maximumValue = 400.0;
-    fovSlider.value = aimFov;
-    fovSlider.thumbTintColor = [UIColor whiteColor];
-    fovSlider.minimumTrackTintColor = [UIColor redColor];
-    [fovSlider addTarget:self action:@selector(fovChanged:) forControlEvents:UIControlEventValueChanged];
+    CustomSlider *fovSlider = [[CustomSlider alloc] initWithFrame:CGRectMake(15, 105, 400, 30) min:10 max:400 value:aimFov];
+    fovSlider.onChange = ^(float val) { aimFov = val; };
     [aimTabContainer addSubview:fovSlider];
     
     // Distance Slider
@@ -350,13 +399,8 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     distLabel.font = [UIFont systemFontOfSize:13];
     [aimTabContainer addSubview:distLabel];
     
-    UISlider *distSlider = [[UISlider alloc] initWithFrame:CGRectMake(15, 170, 400, 20)];
-    distSlider.minimumValue = 10.0;
-    distSlider.maximumValue = 500.0;
-    distSlider.value = aimDistance;
-    distSlider.thumbTintColor = [UIColor whiteColor];
-    distSlider.minimumTrackTintColor = [UIColor blueColor];
-    [distSlider addTarget:self action:@selector(distChanged:) forControlEvents:UIControlEventValueChanged];
+    CustomSlider *distSlider = [[CustomSlider alloc] initWithFrame:CGRectMake(15, 165, 400, 30) min:10 max:500 value:aimDistance];
+    distSlider.onChange = ^(float val) { aimDistance = val; };
     [aimTabContainer addSubview:distSlider];
 
 
