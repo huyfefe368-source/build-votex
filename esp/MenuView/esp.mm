@@ -211,17 +211,23 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     
     NSArray *tabs = @[@"Main", @"AIM", @"Setting"];
     for (int i = 0; i < tabs.count; i++) {
-        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
-        btn.frame = CGRectMake(5, 10 + (i * 50), 65, 35);
-        btn.backgroundColor = (i == 0) ? [UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:1.0] : [UIColor colorWithRed:0.3 green:0.3 blue:0.3 alpha:1.0];
-        [btn setTitle:tabs[i] forState:UIControlStateNormal];
-        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        btn.layer.cornerRadius = 17.5;
-        btn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
-        btn.tag = i;
-        btn.userInteractionEnabled = YES;
-        [btn addTarget:self action:@selector(tabChanged:) forControlEvents:UIControlEventTouchUpInside];
-        [sidebar addSubview:btn];
+        UIView *tabBtn = [[UIView alloc] initWithFrame:CGRectMake(5, 10 + (i * 50), 65, 35)];
+        tabBtn.backgroundColor = (i == 0) ? [UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:1.0] : [UIColor colorWithRed:0.3 green:0.3 blue:0.3 alpha:1.0];
+        tabBtn.layer.cornerRadius = 17.5;
+        tabBtn.tag = i;
+        tabBtn.userInteractionEnabled = YES;
+        
+        UILabel *lbl = [[UILabel alloc] initWithFrame:tabBtn.bounds];
+        lbl.text = tabs[i];
+        lbl.textColor = [UIColor whiteColor];
+        lbl.textAlignment = NSTextAlignmentCenter;
+        lbl.font = [UIFont boldSystemFontOfSize:11];
+        lbl.userInteractionEnabled = NO;
+        [tabBtn addSubview:lbl];
+        
+        UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tabTapped:)];
+        [tabBtn addGestureRecognizer:tap];
+        [sidebar addSubview:tabBtn];
     }
 
     // --- MAIN TAB (ESP) ---
@@ -264,6 +270,7 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     featureBox.layer.borderWidth = 1;
     featureBox.layer.cornerRadius = 10;
     featureBox.backgroundColor = [UIColor blackColor];
+    featureBox.userInteractionEnabled = YES;
     [mainTabContainer addSubview:featureBox];
     
     UILabel *ftTitle = [[UILabel alloc] initWithFrame:CGRectMake(15, 10, 200, 20)];
@@ -294,7 +301,7 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     slider.value = 1.0;
     slider.thumbTintColor = [UIColor whiteColor];
     slider.minimumTrackTintColor = [UIColor greenColor];
-    slider.transform = CGAffineTransformMakeScale(0.8, 0.8);
+    slider.userInteractionEnabled = YES;
     [slider addTarget:self action:@selector(sliderValueChanged:) forControlEvents:UIControlEventValueChanged];
     [featureBox addSubview:slider];
 
@@ -304,7 +311,8 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     aimTabContainer.layer.borderColor = [UIColor whiteColor].CGColor;
     aimTabContainer.layer.borderWidth = 1;
     aimTabContainer.layer.cornerRadius = 10;
-    aimTabContainer.hidden = YES; // Ẩn mặc định
+    aimTabContainer.userInteractionEnabled = YES;
+    aimTabContainer.hidden = YES;
     [menuContainer addSubview:aimTabContainer];
     
     UILabel *aimTitle = [[UILabel alloc] initWithFrame:CGRectMake(15, 10, 200, 20)];
@@ -358,6 +366,7 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     settingTabContainer.layer.borderColor = [UIColor whiteColor].CGColor;
     settingTabContainer.layer.borderWidth = 1;
     settingTabContainer.layer.cornerRadius = 10;
+    settingTabContainer.userInteractionEnabled = YES;
     settingTabContainer.hidden = YES;
     [menuContainer addSubview:settingTabContainer];
     
@@ -368,19 +377,20 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     [settingTabContainer addSubview:stTitle];
 }
 
-- (void)tabChanged:(UIButton *)sender {
+- (void)tabTapped:(UITapGestureRecognizer *)gesture {
+    UIView *sender = gesture.view;
     mainTabContainer.hidden = YES;
     aimTabContainer.hidden = YES;
+    settingTabContainer.userInteractionEnabled = YES;
     settingTabContainer.hidden = YES;
     
-    // Reset buttons color
+    // Reset all tab colors
     for (UIView *sub in sender.superview.subviews) {
-        if ([sub isKindOfClass:[UIButton class]]) {
-            UIButton *btn = (UIButton *)sub;
-            btn.backgroundColor = [UIColor colorWithRed:0.3 green:0.3 blue:0.3 alpha:1.0];
+        if (sub.tag >= 0 && sub.tag <= 2) {
+            sub.backgroundColor = [UIColor colorWithRed:0.3 green:0.3 blue:0.3 alpha:1.0];
         }
     }
-    // Highlight active button
+    // Highlight active
     sender.backgroundColor = [UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:1.0];
     
     if (sender.tag == 0) mainTabContainer.hidden = NO;
