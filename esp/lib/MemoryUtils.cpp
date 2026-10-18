@@ -54,7 +54,10 @@ vm_map_offset_t GetGameModule_Base(char* GameProcessName) {
     kern_return_t kret = task_for_pid(mach_task_self(), pid, &get_task);
     
     if (get_task != MACH_PORT_NULL) {
-        kern_return_t kr = vm_region_recurse(get_task, &vmoffset, &vmsize, &nesting_depth, (vm_region_recurse_info_t)&vbr, &vbrcount);
+        mach_vm_address_t addr = vmoffset;
+        mach_vm_size_t sz = vmsize;
+        kern_return_t kr = mach_vm_region_recurse(get_task, &addr, &sz, &nesting_depth, (vm_region_recurse_info_t)&vbr, &vbrcount);
+        vmoffset = addr;
         if (kr == KERN_SUCCESS) {
             return vmoffset;
         }
