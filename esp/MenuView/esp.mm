@@ -155,6 +155,7 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     menuContainer.layer.borderColor = [UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:1.0].CGColor;
     menuContainer.layer.borderWidth = 2;
     menuContainer.clipsToBounds = YES;
+    menuContainer.userInteractionEnabled = YES;
     menuContainer.hidden = YES;
     [self addSubview:menuContainer];
     
@@ -198,12 +199,14 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
     }
     
     UIPanGestureRecognizer *menuPan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
+    menuPan.cancelsTouchesInView = NO;
     [headerView addGestureRecognizer:menuPan];
     
     // Sidebar Buttons
     UIView *sidebar = [[UIView alloc] initWithFrame:CGRectMake(465, 50, 75, 250)];
     sidebar.backgroundColor = [UIColor colorWithWhite:0.8 alpha:1.0];
     sidebar.layer.cornerRadius = 10;
+    sidebar.userInteractionEnabled = YES;
     [menuContainer addSubview:sidebar];
     
     NSArray *tabs = @[@"Main", @"AIM", @"Setting"];
@@ -216,6 +219,7 @@ static float aimDistance = 200.0f; // Khoảng cách aim mặc định
         btn.layer.cornerRadius = 17.5;
         btn.titleLabel.font = [UIFont boldSystemFontOfSize:11];
         btn.tag = i;
+        btn.userInteractionEnabled = YES;
         [btn addTarget:self action:@selector(tabChanged:) forControlEvents:UIControlEventTouchUpInside];
         [sidebar addSubview:btn];
     }
