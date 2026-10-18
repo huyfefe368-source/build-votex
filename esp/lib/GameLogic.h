@@ -6,6 +6,7 @@
 
 #pragma mark - Function Game
 
+bool looksMatchGame(uint64_t obj);
 uint64_t getMatchGame(uint64_t Moudule_Base);
 uint64_t getMatch(uint64_t matchgame);
 uint64_t CameraMain(uint64_t matchgame);

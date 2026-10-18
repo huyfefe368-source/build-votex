@@ -3,7 +3,7 @@
 #pragma mark - Function Game
 
 // Simple structure check: MatchGame has Match@0x90 and CameraCtrlMgr@0xD8
-static bool looksMatchGame(uint64_t obj) {
+bool looksMatchGame(uint64_t obj) {
     if (!isVaildPtr(obj)) return false;
     uint64_t match = ReadAddr<uint64_t>(obj + 0x90);
     uint64_t camMgr = ReadAddr<uint64_t>(obj + 0xD8);
