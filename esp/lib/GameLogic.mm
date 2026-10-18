@@ -12,26 +12,26 @@ static bool looksMatchGame(uint64_t obj) {
     return isVaildPtr(lp);
 }
 
-// Fallback: scan a bounded region of the module for a MatchGame-like object
+// Runtime scan: walk module data for a MatchGame-shaped object.
+// Called once; result is cached. Logs the offset so it can be hardcoded later.
 static uint64_t scanMatchGame(uint64_t base) {
     if (!base) return 0;
     static uint64_t cached = 0;
     if (cached && looksMatchGame(cached)) return cached;
 
-    // Scan a few likely data ranges (adjust if needed)
-    const uint64_t ranges[][2] = {
-        {0x0C00000, 0x1000000},
-        {0x1800000, 0x1C00000},
-    };
-    for (auto &rg : ranges) {
-        for (uint64_t off = rg[0]; off < rg[1]; off += 8) {
-            uint64_t cand = ReadAddr<uint64_t>(base + off);
-            if (looksMatchGame(cand)) {
-                cached = cand;
-                return cand;
-            }
+    // Typical Il2Cpp data section spans tens of MB. Scan in chunks.
+    const uint64_t start = 0x800000;
+    const uint64_t end   = 0x3000000;
+    for (uint64_t off = start; off < end; off += 8) {
+        uint64_t cand = ReadAddr<uint64_t>(base + off);
+        if (!isVaildPtr(cand)) continue;
+        if (looksMatchGame(cand)) {
+            cached = cand;
+            NSLog(@"[Vortex] MatchGame found at base+0x%llx -> %llx", off, cand);
+            return cand;
         }
     }
+    NSLog(@"[Vortex] MatchGame scan finished, not found");
     return 0;
 }
 
